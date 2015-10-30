@@ -8,6 +8,7 @@
 
 #define PROCESS_PORT 8888
 #define MAXSIZE 2048
+#define FILE_NAME_MAXSIZE 512
 
 int main(int argc , char ** argv)
 {
@@ -65,19 +66,40 @@ int main(int argc , char ** argv)
 
  //       printf ("server: accepting a client from %s port %d\n",client_addr.sin_addr,client_addr.sin_port);
 
-        /* send msg to client */
-        if(send(client_fd,"Hello",sizeof("Hello"),0) < 0)
-        {
-            perror("send error");
-            close(client_fd);
-            exit(0);
+        /* Prepare the file sended */
+        bzero(buffer,sizeof(buffer));
+        int length = recv(client_fd, buffer,MAXSIZE,0);
+        if(length < 0){
+            printf("Server Receive Data Failed");
+            break;
         }
 
-		/* receive msg from client */
-        n = recv(client_fd , buffer , MAXSIZE , 0);
+        char file_name[FILE_NAME_MAXSIZE+1];
+        bzero(file_name,sizeof(file_name));
+        strncpy(file_name, buffer, strlen(buffer) > FILE_NAME_MAXSIZE ? FILE_NAME_MAXSIZE : strlen(buffer));
 
-        buffer[n] = '\0';
-        printf("recv msg from client: %s\n",buffer);
+        char path[]="./ServerFile/";
+        strcat(path, file_name);
+        FILE *fp = fopen(path, "r");
+        if(fp == NULL)
+            printf("File:\t%s Not Found!\n", file_name);
+        else{
+            bzero(buffer, MAXSIZE);
+            int file_block_length = 0;
+            while((file_block_length = fread(buffer, sizeof(char), MAXSIZE, fp)) > 0){
+                printf("file_block_length = %d\n", file_block_length);
+
+                /* sending file */
+                if(send(client_fd, buffer, file_block_length,0) < 0){
+                    printf("Send File:\t%s Failed!\n", file_name);
+                    break;
+                    }
+                bzero(buffer,sizeof(buffer));;
+                }
+            fclose(fp);
+            printf("File:\t%s Transfer Finisheda!\n", file_name);
+        }
+
         close(client_fd);
     }
     close(socket_fd);
